@@ -1,0 +1,52 @@
+name: release-tag
+
+on:
+  push:
+    tags:
+      - v*.*.*
+
+jobs:
+  build:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      -
+        name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+      -
+        name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.12
+      -
+        name: Install Python packages
+        run: pip install -r requirements.txt pyinstaller pyinstaller-versionfile
+      -
+        name: Create Pyinstaller version file (exploit-host)
+        run: create-version-file exploit-host.yml --outfile exploit-host.version --version "${{ github.ref_name }}".Replace("v", "")
+      -
+        name: Build executable (exploit-host)
+        run: pyinstaller --noconfirm --clean --onefile --console --name exploit-host --version-file exploit-host.version --distpath .\ --icon exploit-host.ico exploit-host.py
+      -
+        name: Create Pyinstaller version file (build-static)
+        run: create-version-file build-static.yml --outfile build-static.version --version "${{ github.ref_name }}".Replace("v", "")
+      -
+        name: Build executable (build-static)
+        run: pyinstaller --noconfirm --clean --onefile --console --name build-static --version-file build-static.version --distpath .\ --icon build-static.ico build-static.py
+      -
+        name: Make release zips
+        run: |
+          Compress-Archive -Path ".\debug\", ".\exploits", ".\payloads", ".\pkgs", ".\themes", ".\updates", ".\build-static.exe", ".\exploit-host.exe", ".\FAQ.md", ".\LICENSE", ".\news.json", ".\README.md", ".\settings.json", ".\snakeoil.key", ".\snakeoil.pem" -CompressionLevel Optimal -DestinationPath .\exploit-host-exe-${{ github.ref_name }}.zip
+          Compress-Archive -Path ".\debug\", ".\exploits", ".\fdns", ".\payloads", ".\pkgs", ".\themes", ".\updates", ".\build-static.py", ".\exploit-host.py", ".\FAQ.md", ".\LICENSE", ".\news.json", ".\README.md", ".\requirements.txt", ".\settings.json", ".\snakeoil.key", ".\snakeoil.pem" -CompressionLevel Optimal -DestinationPath .\exploit-host-py-${{ github.ref_name }}.zip
+      -
+        name: Create release
+        uses: ncipollo/release-action@v1
+        with:
+          artifactErrorsFailBuild: true
+          artifacts: |
+            exploit-host-exe-${{ github.ref_name }}.zip
+            exploit-host-py-${{ github.ref_name }}.zip
+          draft: true
